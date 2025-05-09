@@ -18,8 +18,8 @@ buildah:
 	-t "$(PYTHON_IMAGE_NAME):latest" \
 	"."
 
-.PHONY: python
-python:
+.PHONY: build-python
+build-python:
 	@echo "Building $(PYTHON_IMAGE_NAME)..."
 	docker build \
 		--ssh default=$(HOME)/.ssh/current/id_rsa_infra \
@@ -38,8 +38,8 @@ build-worker:
 		-t $(WORKER_IMAGE_NAME):$(DATE_TAG) \
 		-f Dockerfile .
 
-.PHONY: wolfi
-wolfi:
+.PHONY: build-wolfi
+build-wolfi:
 	@echo "Building $(WOLFI_IMAGE_NAME)..."
 	docker build \
 		--ssh default=$(HOME)/.ssh/current/id_rsa_infra \
@@ -67,7 +67,15 @@ build-frontend:
 		-t $(FRONTEND_IMAGE_NAME):latest \
 		-t $(FRONTEND_IMAGE_NAME):$(DATE_TAG) \
 		-f Dockerfile .
-
+.PHONY: frontend-builder
+frontend-builder:
+	@echo "Building frontend-builder..."
+	docker build \
+		--ssh default=$(HOME)/.ssh/current/id_rsa_infra \
+		--target frontend-builder \
+		-t frontend-builder:latest \
+		-t frontend-builder:$(DATE_TAG) \
+		-f Dockerfile .
 .PHONY: clean
 clean:
 	@echo "Cleaning up Docker images..."

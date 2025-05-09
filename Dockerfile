@@ -46,7 +46,7 @@ RUN --mount=type=ssh \
 
 FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}@${BASE_DIGEST} AS backend
 ARG APP_ROOT=/opt/app-root
-ENV HOME=${APP_ROOT}/src \
+ARG HOME=${APP_ROOT}/src \
     PATH=$HOME/.local/bin/:/opt/app-root/src/bin:/opt/app-root/bin:$PATH
 USER root
 WORKDIR /opt/rescale
@@ -106,19 +106,23 @@ RUN pip uninstall -y pip && \
     /usr/local/lib/python3.9/site-packages/setuptools-69.1.1.dist-info
 RUN update-crypto-policies --set FIPS:NO-ENFORCE-EMS
 
-FROM ${NODE_REGISTRY}/${NODE_IMAGE}:${NODE_TAG}@${NODE_DIGEST} AS frontend
+FROM ${NODE_REGISTRY}/${NODE_IMAGE}:${NODE_TAG}@${NODE_DIGEST} AS frontend-builder
 WORKDIR /opt/rescale/rescale-platform-web
-RUN apt update && \
-    apt install -y --no-install-recommends \
-    git && \
-    apt clean && rm -rf /var/lib/apt/lists/*
 RUN npm config set engine-strict true && \
     echo "NODE_PATH=apps/shared:apps" >> .env && \
     echo "NODE_OPTIONS=--max-old-space-size=8192" >> .env
 COPY ./rescale-platform-web ./
 COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv
-RUN npm ci
+RUN npm install
 RUN npm run build
+
+# use the backend image because it has our python stuff
+FROM backend AS frontend 
+WORKDIR /opt/rescale/rescale-platform-web
+COPY --from=frontend-builder /opt/rescale/rescale-platform-web/ /opt/rescale/
+ARG NODE_VERSION=18 
+RUN dnf module enable -y nodejs:$NODE_VERSION && \
+    dnf install -y --nodocs nodejs
 
 FROM 078704701727.dkr.ecr-fips.us-east-1.amazonaws.com/rescale-platform-worker:ba283fb7a3367561f38beb249230458c298f8de6 AS worker-dev
 COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv

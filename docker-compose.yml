@@ -4,6 +4,8 @@ services:
     restart: always
     container_name: platformdb
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     user: postgres
     environment:
       POSTGRES_USER: postgres
@@ -22,6 +24,8 @@ services:
   platformcache:
     image: "redis:7"
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     restart: always
     container_name: platformcache
     ports:
@@ -64,6 +68,8 @@ services:
     profiles:
       - distroless
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     volumes:
       - ./rescale-platform-web:/opt/rescale/rescale-platform-web
       - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
@@ -76,35 +82,37 @@ services:
       - platformdb
       - platformcache
 
-  # envprops:
-  #   image: backend:latest
-  #   profiles: ["setup"]
-  #   restart: no
-  #   container_name: envprops
-  #   network_mode: host
-  #   volumes:
-  #     - ./rescale-platform-web:/opt/rescale/rescale-platform-web
-  #     - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
-  #   working_dir: /opt/rescale/rescale-platform-web
-  #   command:
-  #     - /bin/bash
-  #     - -c
-  #     - |
-  #       git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
-  #       git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
-  #       /opt/rescale/venv/bin/python envprops.py
-  #   depends_on:
-  #     - platformdb
-  #     - platformcache
+  envprops: # this probably wont work, but it wont try to bring it up unless you use the profile
+    image: backend:latest
+    profiles: 
+      - setup
+    restart: no
+    container_name: envprops
+    network_mode: host
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    working_dir: /opt/rescale/rescale-platform-web
+    command:
+      - /bin/bash
+      - -c
+      - |
+        git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
+        git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
+        /opt/rescale/venv/bin/python envprops.py
+    depends_on:
+      - platformdb
+      - platformcache
 
   makemigrate:
     image: backend:latest
     profiles: 
-      - "migrate"
-      - "setup"
+      - makemigrate
     restart: no
     container_name: makemigrate
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     volumes:
       - ./rescale-platform-web:/opt/rescale/rescale-platform-web
       - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
@@ -119,8 +127,11 @@ services:
     restart: no
     container_name: migrate
     profiles:
-      - "migrate"
+      - migrate
+      - setup
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     volumes:
       - ./rescale-platform-web:/opt/rescale/rescale-platform-web
       - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
@@ -140,6 +151,8 @@ services:
     image: backend:latest
     restart: always
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     container_name: celery-worker
     command:
       - /bin/bash
@@ -158,6 +171,8 @@ services:
     image: backend:latest
     restart: always
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     container_name: celery-beat
     command:
       - /bin/bash
@@ -179,17 +194,14 @@ services:
     extra_hosts:
       - platform-local.rescale.com:127.0.0.1
     container_name: frontend
-    working_dir: /opt/rescale/rescale-platform-web
     command:
       - /bin/bash
       - -c
       - |
-        git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
-        git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
-        npm run watch
-    volumes:
-      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
-      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+        source /opt/rescale/venv/bin/activate && npm run watch
+    # volumes:
+      # - ./rescale-platform-web:/opt/rescale/rescale-platform-web # mounting this dir will remove the node_modules folder so you'll need to npm build again inside the container after launch
+      # - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
     depends_on:
       - django
 
