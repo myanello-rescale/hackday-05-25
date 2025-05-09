@@ -1,0 +1,70 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations: {}
+  name: web-build-hackday-6
+  labels:
+    argocd.argoproj.io/instance: dummy-label
+spec:
+  params:
+    - name: github-web-repo-url
+      value: git@github.com:rescale/rescale-platform-web.git
+    - name: github-web-revision
+      value: myan/hack-day-2025
+    - name: github-metadata-repo-url
+      value: git@github.com:rescale/rescale-platform-metadata.git
+    - name: github-metadata-revision
+      value: candidate
+    - name: CONTAINER_REGISTRY
+      value: >-
+        152586189762.dkr.ecr.us-east-1.amazonaws.com/myanello-dev/hack-day-2025
+    - name: GIT_INIT_IMAGE_REF
+      value: alpine/git
+    - name: DOCKER_CONTEXT
+      value: ../../
+    - name: SSH_KEY_PATH
+      value: /workspace/ssh/id_rsa
+    - name: BUILD_TARGET
+      value: backend-hardened
+    - name: github-argocd-revision
+      value: main
+    - name: RUN_PUSH_TO_ARGOCD
+      value: 'false'
+  pipelineRef:
+    params:
+      - name: kind
+        value: pipeline
+      - name: name
+        value: rescale-platform-web-build-artifact-pipeline
+      - name: namespace
+        value: myanello-dev
+    resolver: cluster
+  taskRunTemplate:
+    podTemplate:
+      env:
+        - name: DOCKER_BUILDKIT
+          value: '1'
+      securityContext:
+        fsGroup: 65532
+    serviceAccountName: rescale-github-bot
+  timeouts:
+    pipeline: 2h0m0s
+  workspaces:
+    - name: rescale-platform-web-pvc
+      volumeClaimTemplate:
+        metadata:
+          creationTimestamp: null
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20G
+          volumeMode: Filesystem
+        status: {}
+    - name: dockerconfig
+      secret:
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+        secretName: iron-bank-bot-secret

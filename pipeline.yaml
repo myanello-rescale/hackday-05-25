@@ -1,0 +1,271 @@
+# This is a common pipeline heavily parametrized to run on any environment, build&push web container and issue new certificates
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: rescale-platform-web-build-artifact-pipeline
+spec:
+  description: |
+    Purpose: Build, push, and deploy the rescale-platform-web image
+  workspaces:
+    - name: rescale-platform-web-pvc
+    - name: dockerconfig
+      description: custom .docker/config.json file with credentials if pulling from a private registry
+      optional: true
+  params:
+    - name: github-web-repo-url
+      type: string
+      description: "The GitHub repo URL to clone from. ie: git@github.com:rescale/rescale-platform-web.git"
+    - name: github-web-revision
+      type: string
+      description: "The GitHub revision to checkout. ie: candidate"
+    - name: web-checkout-subdir
+      type: string
+      default: rescale-platform-web
+    - name: github-argocd-repo-url
+      type: string
+      description: "The GitHub repo URL to clone from. ie: git@github.com:rescale/rescale-platform-web.git"
+      default: "git@github.com:rescale/argocd.git"
+    - name: github-argocd-revision
+      type: string
+      description: "The GitHub revision to checkout. ie: candidate"
+      default: main
+    - name: argocd-checkout-subdir
+      type: string
+      default: argocd
+    - name: github-metadata-repo-url
+      type: string
+      description: "The GitHub repo URL to clone from. ie: git@github.com:rescale/rescale-platform-web.git"
+    - name: github-metadata-revision
+      type: string
+      description: "The GitHub revision to checkout. ie: candidate"
+    - name: metadata-checkout-subdir
+      type: string
+      default: "rescale-platform-metadata"
+    - name: git-clone-task-version
+      type: string
+      description: "The git-clone task version to use"
+      default: "0.9"
+    - name: git-cli-task-version
+      type: string
+      description: "The git-clone task version to use"
+      default: "0.4"
+    - name: GIT_INIT_IMAGE_REF
+      type: string
+      description: "Git clone executor image as defined in tekton git-init task"
+    - name: BUILDAH_BUILDER_IMAGE_REF 
+      type: string
+      description: "Buildah builder image as defined in tekton buildah task"
+      default: quay.io/buildah/stable:v1
+    - name: CONTAINER_REGISTRY
+      type: string
+    - name: DOCKER_FILE_LOCATION
+      type: string
+      default: "./rescale-platform-web/docker/Dockerfile"
+    - name: DOCKER_CONTEXT
+      type: string
+      default: "./rescale-platform-web/docker"
+    - name: BUILD_EXTRA_ARGS
+      type: string
+      default: ""
+    - name: PUSH_EXTRA_ARGS
+      type: string
+      default: ""
+    - name: SKIP_PUSH
+      type: string
+      default: "false"
+    - name: BUILD_ARGS
+      type: array
+      default: []
+    - name: BUILD_TARGET
+      type: string
+      default: ""
+    - name: SSH_KEY_PATH
+      type: string
+      description: "SSH key path to mount for buildah"
+      default: ""
+    - name: RUN_ANCHORECTL_SCAN
+      description: "Executes Anchore vulnerability scan"
+      type: string
+      default: "false"
+    - name: RUN_PUSH_TO_ARGOCD
+      description: "Executes Anchore vulnerability scan"
+      type: string
+      default: "false"
+  tasks:
+    - name: clone-argocd-repo
+      when:
+        - input: "$(params.RUN_PUSH_TO_ARGOCD)"
+          operator: in
+          values: [ "true" ]
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: myanello-dev
+      params:
+        - name: url
+          value: $(params.github-argocd-repo-url)
+        - name: revision
+          value: $(params.github-argocd-revision)
+        - name: subdirectory
+          value: $(params.argocd-checkout-subdir)
+        - name: gitInitImage
+          value: $(params.GIT_INIT_IMAGE_REF)
+      workspaces:
+        - name: output
+          workspace: rescale-platform-web-pvc
+    - name: clone-source-web
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: myanello-dev
+      params:
+        - name: url
+          value: $(params.github-web-repo-url)
+        - name: revision
+          value: $(params.github-web-revision)
+        - name: subdirectory
+          value: $(params.web-checkout-subdir)
+        - name: gitInitImage
+          value: $(params.GIT_INIT_IMAGE_REF)
+      workspaces:
+        - name: output
+          workspace: rescale-platform-web-pvc
+    - name: clone-source-metadata
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: myanello-dev
+      params:
+        - name: url
+          value: $(params.github-metadata-repo-url)
+        - name: revision
+          value: $(params.github-metadata-revision)
+        - name: subdirectory
+          value: $(params.metadata-checkout-subdir)
+        - name: gitInitImage
+          value: $(params.GIT_INIT_IMAGE_REF)
+      workspaces:
+        - name: output
+          workspace: rescale-platform-web-pvc
+
+
+    - name: container-build-push
+      runAfter: [ "clone-source-metadata", "clone-source-web", "clone-argocd-repo" ]
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: myanello-dev
+      timeout: "1h30m0s"
+      workspaces:
+        - name: source
+          workspace: rescale-platform-web-pvc
+        - name: dockerconfig       # what pipeline runs will call this
+          workspace: dockerconfig  # what pipeline workspace this refers to
+      params:
+        - name: IMAGE
+          value: $(params.CONTAINER_REGISTRY):$(tasks.clone-source-web.results.commit)          
+        - name: BUILDER_IMAGE
+          value: $(params.BUILDAH_BUILDER_IMAGE_REF)
+        - name: DOCKERFILE
+          value: $(params.DOCKER_FILE_LOCATION)
+        - name: CONTEXT
+          value: $(params.DOCKER_CONTEXT)
+        - name: BUILD_EXTRA_ARGS
+          value: $(params.BUILD_EXTRA_ARGS[*])
+        - name: PUSH_EXTRA_ARGS
+          value: $(params.PUSH_EXTRA_ARGS[*])
+        - name: SKIP_PUSH
+          value: $(params.SKIP_PUSH)
+        - name: BUILD_ARGS
+          value: $(params.BUILD_ARGS[*])
+        - name: SSH_KEY_PATH
+          value: $(params.SSH_KEY_PATH)
+        - name: BUILD_TARGET
+          value: $(params.BUILD_TARGET)
+
+    - name: push-argocd-repo
+      when:
+        - input: "$(params.RUN_PUSH_TO_ARGOCD)"
+          operator: in
+          values: [ "true" ]
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-cli
+          - name: namespace
+            value: myanello-dev
+      workspaces:
+        - name: source
+          workspace: rescale-platform-web-pvc
+          subPath: $(params.argocd-checkout-subdir)
+      params:
+        - name: GIT_USER_NAME
+          value: rescalebot
+        - name: GIT_USER_EMAIL
+          value: rescalebot@rescale.com
+        - name: BASE_IMAGE
+          value: $(params.GIT_INIT_IMAGE_REF)
+        - name: GIT_SCRIPT
+          value: |
+            git config --global --add safe.directory $(workspaces.source.path)
+
+            git fetch
+            git checkout $(params.github-argocd-revision)
+            git pull origin $(params.github-argocd-revision)
+
+            sed -i \
+            "s~$(params.CONTAINER_REGISTRY):.*~$(params.CONTAINER_REGISTRY):$(tasks.clone-source-web.results.commit)@$(tasks.container-build-push.results.IMAGE_DIGEST)~g" \
+            ./il5/staging/rescale/rescale-platform-web/platform-web-application.yaml
+
+            git add ./il5/staging/rescale/rescale-platform-web/*
+
+            if git diff --cached --quiet; then
+                echo "No changes staged for commit. Exiting."
+            else
+                git commit -m "Tekton automated image update of IL5-staging platformweb $(tasks.clone-source-web.results.commit)"
+                git push origin $(params.github-argocd-revision)
+            fi
+    # - name: execute-anchorectl-scan
+    #   runAfter: [ "container-build-push" ]
+    #   when:
+    #     - input: "$(params.RUN_ANCHORECTL_SCAN)"
+    #       operator: in
+    #       values: [ "true" ]
+    #   taskRef:
+    #     resolver: cluster
+    #     params:
+    #       - name: kind
+    #         value: task
+    #       - name: name
+    #         value: anchorectl-container-scanner
+    #       - name: namespace
+    #         value: anchore
+    #   params:
+    #     - name: target-image
+    #       value: "$(params.CONTAINER_REGISTRY):$(tasks.clone-source-web.results.commit)"
+    #     - name: image-digest
+    #       value: $(tasks.container-build-push.results.IMAGE_DIGEST)
+

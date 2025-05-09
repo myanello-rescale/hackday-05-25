@@ -43,6 +43,7 @@ spec:
     default: "oci"
   - name: BUILD_EXTRA_ARGS
     description: Extra parameters passed for the build command when building images. WARNING - must be sanitized to avoid command injection
+    type: string
     default: ""
   - name: PUSH_EXTRA_ARGS
     description: Extra parameters passed for the push command when pushing images. WARNING - must be sanitized to avoid command injection
@@ -54,15 +55,12 @@ spec:
   - name: BUILD_ARGS
     description: Dockerfile build arguments, array of key=value
     type: array
-    default:
-    - ""
-  - name: SSH_KEY
-    default: false
-    type: bool
+    default: []
+  - name: SSH_KEY_PATH
+    type: string
     description: >-
-      Whether you are providing an ssh key in the workspace. This is used when
-      building images that require SSH access to private repositories.
-      The key should be placed at the root of the Workspace with name id_rsa.
+      The path to the SSH key in the workspace. This is used when building images
+      that require SSH access to private repositories.
   - name: BUILD_TARGET
     default: ""
     type: string
@@ -105,8 +103,8 @@ spec:
       value: $(params.PUSH_EXTRA_ARGS)
     - name: PARAM_SKIP_PUSH
       value: $(params.SKIP_PUSH)
-    - name: PARAM_SSH_KEY
-      value: $(params.SSH_KEY)
+    - name: PARAM_SSH_KEY_PATH
+      value: $(params.SSH_KEY_PATH)
     - name: PARAM_BUILD_TARGET
       value: $(params.BUILD_TARGET)
     args:
@@ -122,7 +120,7 @@ spec:
       
       # Add SSH flag conditionally
       SSH_FLAG=""
-      [ -n "${PARAM_SSH_KEY}" ] && SSH_FLAG="--ssh=default=${PARAM_SSH_KEY_PATH}"
+      [ -n "${PARAM_SSH_KEY_PATH}" = "true" ] && SSH_FLAG="--ssh=default=${PARAM_SSH_KEY_PATH}"
       # Add build target flag conditionally
       BUILD_TARGET=""
       [ -n "${PARAM_BUILD_TARGET}" ] && BUILD_TARGET="--target=${PARAM_BUILD_TARGET}"
