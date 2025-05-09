@@ -2,9 +2,14 @@
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/python/python39
 ARG BASE_TAG=3.9
-ARG BASE_DIGEST=4115bd7363870546a28b781aa00049f5ffad9520b8f84652beb0411004f23beb
+ARG BASE_DIGEST=sha256:4115bd7363870546a28b781aa00049f5ffad9520b8f84652beb0411004f23beb
 
-FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}@sha256:${BASE_DIGEST} AS python-builder
+ARG NODE_REGISTRY=docker.io
+ARG NODE_IMAGE=node
+ARG NODE_TAG=18-bullseye-slim
+ARG NODE_DIGEST=sha256:912df8d9d8d23d39b463a8634d51cac990d89d2f62a6504e1d35296eb4f38251
+
+FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}@${BASE_DIGEST} AS python-builder
 WORKDIR /opt/rescale/
 ARG APP_ROOT=/opt/rescale/
 ARG HOME=${APP_ROOT}/
@@ -39,47 +44,44 @@ RUN --mount=type=ssh \
     bash -c "source /opt/rescale/venv/bin/activate && /opt/rescale/openssl-verify.sh"
 
 
-
-FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}@sha256:${BASE_DIGEST} AS backend
+FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}@${BASE_DIGEST} AS backend
 ARG APP_ROOT=/opt/app-root
 ENV HOME=${APP_ROOT}/src \
     PATH=$HOME/.local/bin/:/opt/app-root/src/bin:/opt/app-root/bin:$PATH
-
 USER root
-
-WORKDIR /app/
-COPY rescale-platform-metadata rescale-platform-metadata
-COPY rescale-platform-web rescale-platform-web
-COPY --from=python-builder /opt/rescale/venv venv
-
+WORKDIR /opt/rescale
 RUN dnf upgrade -y --refresh --nodocs && \
     dnf install -y --nodocs \
     xmlsec1-openssl gettext git \
     openssh openssh-clients libpq-devel && \
     dnf -y clean all && rm -rf /var/dnf/cache
+COPY rescale-platform-metadata rescale-platform-web ./
+COPY --from=python-builder /opt/rescale/venv venv 
 
-RUN \
-    for script in /app/venv/bin/*; do \
-    if head -n 1 "$script" | grep -q "/workspace/output/venv/bin/python"; then \
-    sed -i "1s|^.*$|#\!/app/venv/bin/python3|" "$script"; \
-    fi; \
-    done && \
-    sed -i 's|/workspace/output/venv|/app/venv|g' /app/venv/bin/activate
+# RUN \ I don't think this is needed since we are building the venv in the same path as the final image
+#     for script in /opt/rescale/venv/bin/*; do \
+#     if head -n 1 "$script" | grep -q "/workspace/output/venv/bin/python"; then \
+#     sed -i "1s|^.*$|#\!/opt/rescale/venv/bin/python3|" "$script"; \
+#     fi; \
+#     done && \
+#     sed -i 's|/workspace/output/venv|/opt/rescale/venv|g' /opt/rescale/venv/bin/activate
 
-RUN find /app/ -name '.git' -exec rm -rf {} + && \
-    find /app/ -name '.github' -exec rm -rf {} + && \
-    find /app/ -name 'git-hooks' -exec rm -rf {} +
+FROM cgr.dev/chainguard/wolfi-base AS backend-wolfi
+WORKDIR /opt/rescale
+ENV PATH="/opt/rescale/venv/bin:$PATH"
+RUN apk add python3~3.9
+COPY rescale-platform-metadata rescale-platform-metadata
+COPY rescale-platform-web rescale-platform-web
+COPY --from=python-builder /opt/rescale/venv venv
+COPY --from=python-builder /opt/app-root /opt/app-root
+
+FROM backend AS backend-prod
+RUN find /opt/ -name '.git' -exec rm -rf {} + && \
+    find /opt/ -name '.github' -exec rm -rf {} + && \
+    find /opt/ -name 'git-hooks' -exec rm -rf {} +
 
 
 FROM backend AS backend-hardened
-ARG APP_ROOT=/opt/app-root
-ENV HOME=${APP_ROOT}/src \
-    PATH=$HOME/.local/bin/:/opt/app-root/src/bin:/opt/app-root/bin:$PATH
-
-USER root
-
-WORKDIR /app/
-
 RUN dnf remove -y \
     perl-macros perl-base perl-libs perl-IO \
     perl-interpreter perl-Errno perl-HTTP-Tiny \
@@ -87,24 +89,33 @@ RUN dnf remove -y \
     python3-subscription-manager-rhsm \
     dnf-plugin-subscription-manager \
     python3-cloud-what perl ncurses
-
-RUN chmod -R ug-s /app/
+RUN chmod -R ug-s /opt/rescale/
 RUN chmod -f ug-s /usr/bin/chage /usr/bin/gpasswd /usr/bin/mount /usr/bin/newgrp /usr/bin/passwd \
     /usr/bin/su /usr/bin/umount /usr/libexec/utempter/utempter /usr/sbin/pam_timestamp_check \
     /usr/sbin/unix_chkpwd /usr/sbin/userhelper /usr/libexec/openssh/ssh-keysign
 # Removing wrapper script folder to fix vuln in numba package in requirement.txt in analysis_wrapper_scripts
 # the wrapper scripts only get added to the analysis images and thats where they actually run
 # anchore is reading that req.txt and using that as its signal for the vuln
-RUN rm -rf /app/rescale-platform-metadata/jobs/management/commands/analysis_wrapper_scripts
-RUN rm -rf /app/venv/src
-
+RUN rm -rf /opt/rescale/rescale-platform-metadata/jobs/management/commands/analysis_wrapper_scripts
+RUN rm -rf /opt/rescale/venv/src
 RUN pip uninstall -y pip && \
     rm -rf /usr/local/lib/python3.9/site-packages/pip \
     /opt/app-root/lib/python3.9/site-packages/setuptools \
     /opt/app-root/lib/python3.9/site-packages/setuptools-53.0.0.dist-info \
     /usr/local/lib/python3.9/site-packages/setuptools \
     /usr/local/lib/python3.9/site-packages/setuptools-69.1.1.dist-info
-
 RUN update-crypto-policies --set FIPS:NO-ENFORCE-EMS
 
-HEALTHCHECK NONE
+FROM ${NODE_REGISTRY}/${NODE_IMAGE}:${NODE_TAG}@${NODE_DIGEST} AS frontend
+WORKDIR /opt/rescale/rescale-platform-web
+RUN apt update && \
+    apt install -y --no-install-recommends \
+    git && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+RUN npm config set engine-strict true && \
+    echo "NODE_PATH=apps/shared:apps" >> .env && \
+    echo "NODE_OPTIONS=--max-old-space-size=8192" >> .env
+COPY ./rescale-platform-web ./
+COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv
+RUN npm ci
+RUN npm run build

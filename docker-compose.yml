@@ -1,0 +1,194 @@
+services:
+  platformdb:
+    image: "postgres:14"
+    restart: always
+    container_name: platformdb
+    network_mode: host
+    user: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: platform-local
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      
+  platformcache:
+    image: "redis:7"
+    network_mode: host
+    restart: always
+    container_name: platformcache
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - cache:/data
+      
+  django:
+    image: backend:latest
+    restart: always
+    container_name: django
+    network_mode: host
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    working_dir: /opt/rescale/rescale-platform-web
+    command:
+      - /bin/bash
+      - -c
+      - |
+        git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
+        git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
+        /opt/rescale/venv/bin/python manage.py runserver 0.0.0.0:8323
+    depends_on:
+      - platformdb
+      - platformcache
+
+
+  wolfi:
+    image: backend-wolfi:latest
+    restart: always
+    container_name: wolfi
+    profiles:
+      - distroless
+    network_mode: host
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    working_dir: /opt/rescale/rescale-platform-web
+    command: 
+    - /bin/sh
+    - -c
+    - sleep inf
+    depends_on:
+      - platformdb
+      - platformcache
+
+  # envprops:
+  #   image: backend:latest
+  #   profiles: ["setup"]
+  #   restart: no
+  #   container_name: envprops
+  #   network_mode: host
+  #   volumes:
+  #     - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+  #     - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+  #   working_dir: /opt/rescale/rescale-platform-web
+  #   command:
+  #     - /bin/bash
+  #     - -c
+  #     - |
+  #       git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
+  #       git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
+  #       /opt/rescale/venv/bin/python envprops.py
+  #   depends_on:
+  #     - platformdb
+  #     - platformcache
+
+  makemigrate:
+    image: backend:latest
+    profiles: 
+      - "migrate"
+      - "setup"
+    restart: no
+    container_name: makemigrate
+    network_mode: host
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    command: >
+      python manage.py makemigrations
+    depends_on:
+      - platformdb
+      - platformcache
+
+  migrate:
+    image: backend:latest
+    restart: no
+    container_name: migrate
+    profiles:
+      - "migrate"
+    network_mode: host
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    working_dir: /opt/rescale/rescale-platform-web
+    command:
+      - /bin/bash
+      - -c
+      - |
+        git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
+        git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
+        /opt/rescale/venv/bin/python manage.py migrate
+    depends_on:
+      - platformdb
+      - platformcache
+
+  celery-worker:
+    image: backend:latest
+    restart: always
+    network_mode: host
+    container_name: celery-worker
+    command:
+      - /bin/bash
+      - -c
+      - |
+        git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
+        git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
+        /opt/rescale/venv/bin/celery -A platformweb worker --loglevel=info
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    depends_on:
+      - django
+
+  celery-beat:
+    image: backend:latest
+    restart: always
+    network_mode: host
+    container_name: celery-beat
+    command:
+      - /bin/bash
+      - -c
+      - |
+        git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
+        git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
+        /opt/rescale/venv/bin/celery -A platformweb beat --loglevel=info
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    depends_on:
+      - django   
+
+  frontend:
+    image: frontend:latest
+    restart: always
+    network_mode: host
+    container_name: frontend
+    working_dir: /opt/rescale/rescale-platform-web
+    command:
+      - /bin/bash
+      - -c
+      - |
+        git config --global --add safe.directory /opt/rescale/rescale-platform-metadata &&
+        git config --global --add safe.directory /opt/rescale/rescale-platform-web &&
+        npm run watch
+    volumes:
+      - ./rescale-platform-web:/opt/rescale/rescale-platform-web
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+    depends_on:
+      - django
+
+volumes:
+  pgdata:
+  cache:
