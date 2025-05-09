@@ -39,6 +39,8 @@ services:
     restart: always
     container_name: django
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     volumes:
       - ./rescale-platform-web:/opt/rescale/rescale-platform-web
       - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
@@ -174,6 +176,8 @@ services:
     image: frontend:latest
     restart: always
     network_mode: host
+    extra_hosts:
+      - platform-local.rescale.com:127.0.0.1
     container_name: frontend
     working_dir: /opt/rescale/rescale-platform-web
     command:
@@ -188,6 +192,28 @@ services:
       - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
     depends_on:
       - django
+
+  # jobstarter:
+  #   image: worker:latest
+  #   restart: always
+  #   network_mode: host
+  #   container_name: jobstarter
+  #   command:
+  #     - /bin/bash
+  #     - -c
+  #     - /opt/rescale/start-jobstarter-wrapper.sh
+  # clusterservice:
+  #   image: worker:latest
+  #   restart: always
+  #   network_mode: host
+  #   container_name: clusterservice
+  #   working_dir: /opt/rescale
+  #   command:
+  #   - /bin/bash
+  #   - -c
+  #   - /opt/rescale/start-cluster-service.sh
+
+
 
 volumes:
   pgdata:

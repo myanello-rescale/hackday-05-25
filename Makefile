@@ -3,7 +3,7 @@ BACKEND_IMAGE_NAME := backend
 FRONTEND_IMAGE_NAME := frontend
 PYTHON_IMAGE_NAME := python-builder
 WOLFI_IMAGE_NAME := backend-wolfi
-
+WORKER_IMAGE_NAME := worker
 .PHONY: all
 all: build
 
@@ -26,6 +26,16 @@ python:
 		--target $(PYTHON_IMAGE_NAME) \
 		-t $(PYTHON_IMAGE_NAME):latest \
 		-t $(PYTHON_IMAGE_NAME):$(DATE_TAG) \
+		-f Dockerfile .
+
+.PHONY: build-worker
+build-worker:
+	@echo "Building $(WORKER_IMAGE_NAME)..."
+	docker build \
+		--ssh default=$(HOME)/.ssh/current/id_rsa_infra \
+		--target $(WORKER_IMAGE_NAME)-dev \
+		-t $(WORKER_IMAGE_NAME):latest \
+		-t $(WORKER_IMAGE_NAME):$(DATE_TAG) \
 		-f Dockerfile .
 
 .PHONY: wolfi

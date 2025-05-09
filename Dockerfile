@@ -119,3 +119,6 @@ COPY ./rescale-platform-web ./
 COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv
 RUN npm ci
 RUN npm run build
+
+FROM 078704701727.dkr.ecr-fips.us-east-1.amazonaws.com/rescale-platform-worker:ba283fb7a3367561f38beb249230458c298f8de6 AS worker-dev
+COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv
