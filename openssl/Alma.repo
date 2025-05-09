@@ -1,0 +1,13 @@
+# Alma.repo
+#
+
+[alma]
+name=Alma 9.4 Appstream
+mirrorlist=https://mirrors.almalinux.org/mirrorlist/9.4/appstream
+gpgcheck=1
+enabled=0
+countme=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AlmaLinux9
+[alma-base]
+name= Alma 9.4 Baseos
+mirrorlist=https://mirrors.almalinux.org/mirrorlist/9.4/baseos
