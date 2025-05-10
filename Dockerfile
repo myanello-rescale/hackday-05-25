@@ -106,6 +106,7 @@ RUN pip uninstall -y pip && \
     /usr/local/lib/python3.9/site-packages/setuptools-69.1.1.dist-info
 RUN update-crypto-policies --set FIPS:NO-ENFORCE-EMS
 
+
 FROM ${NODE_REGISTRY}/${NODE_IMAGE}:${NODE_TAG}@${NODE_DIGEST} AS frontend-builder
 WORKDIR /opt/rescale/rescale-platform-web
 RUN npm config set engine-strict true && \
@@ -116,6 +117,7 @@ COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv
 RUN npm install
 RUN npm run build
 
+
 # use the backend image because it has our python stuff
 FROM backend AS frontend 
 WORKDIR /opt/rescale/rescale-platform-web
@@ -123,6 +125,3 @@ COPY --from=frontend-builder /opt/rescale/rescale-platform-web/ /opt/rescale/
 ARG NODE_VERSION=18 
 RUN dnf module enable -y nodejs:$NODE_VERSION && \
     dnf install -y --nodocs nodejs
-
-FROM 078704701727.dkr.ecr-fips.us-east-1.amazonaws.com/rescale-platform-worker:ba283fb7a3367561f38beb249230458c298f8de6 AS worker-dev
-COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv

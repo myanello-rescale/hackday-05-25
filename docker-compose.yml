@@ -199,9 +199,9 @@ services:
       - -c
       - |
         source /opt/rescale/venv/bin/activate && npm run watch
-    # volumes:
+    volumes:
       # - ./rescale-platform-web:/opt/rescale/rescale-platform-web # mounting this dir will remove the node_modules folder so you'll need to npm build again inside the container after launch
-      # - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
+      - ./rescale-platform-metadata:/opt/rescale/rescale-platform-metadata
     depends_on:
       - django
 
@@ -224,8 +224,6 @@ services:
   #   - /bin/bash
   #   - -c
   #   - /opt/rescale/start-cluster-service.sh
-
-
 
 volumes:
   pgdata:
