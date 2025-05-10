@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   annotations: {}
-  name: web-build-hackday-19
+  name: web-build-hackday-22
   labels:
     argocd.argoproj.io/instance: dummy-label
 spec:
@@ -33,7 +33,7 @@ spec:
     - name: RUN_PUSH_TO_ARGOCD
       value: 'false'
     - name: DOCKER_CACHE
-      value: 'false'
+      value: 'true'
   pipelineRef:
     params:
       - name: kind

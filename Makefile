@@ -15,7 +15,7 @@ buildah:
 	"--target=$(BACKEND_IMAGE_NAME)" \
 	"--format=oci" \
 	-f "Dockerfile" \
-	-t "$(PYTHON_IMAGE_NAME):latest" \
+	-t "$(BACKEND_IMAGE_NAME):latest" \
 	"."
 
 .PHONY: build-python
@@ -56,6 +56,7 @@ build-backend:
 		--target $(BACKEND_IMAGE_NAME) \
 		-t $(BACKEND_IMAGE_NAME):latest \
 		-t $(BACKEND_IMAGE_NAME):$(DATE_TAG) \
+		-t 152586189762.dkr.ecr-fips.us-east-1.amazonaws.com/myanello-dev/hack-day-2025:backend \
 		-f Dockerfile .
 
 .PHONY: build-frontend
