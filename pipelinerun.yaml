@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   annotations: {}
-  name: web-build-hackday-6
+  name: web-build-hackday-15
   labels:
     argocd.argoproj.io/instance: dummy-label
 spec:
@@ -17,13 +17,15 @@ spec:
       value: candidate
     - name: CONTAINER_REGISTRY
       value: >-
-        152586189762.dkr.ecr.us-east-1.amazonaws.com/myanello-dev/hack-day-2025
+        152586189762.dkr.ecr-fips.us-east-1.amazonaws.com/myanello-dev/hack-day-2025
     - name: GIT_INIT_IMAGE_REF
-      value: alpine/git
+      value: 152586189762.dkr.ecr.us-east-1.amazonaws.com/myanello-dev/hack-day-2025:git
     - name: DOCKER_CONTEXT
-      value: ../../
+      value: /workspace/source/rescale-platform-web
+    - name: DOCKERFILE
+      value: docker/Dockerfile
     - name: SSH_KEY_PATH
-      value: /workspace/ssh/id_rsa
+      value: /root/.ssh/id_rescale-org-github-bot-key
     - name: BUILD_TARGET
       value: backend-hardened
     - name: github-argocd-revision

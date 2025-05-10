@@ -41,17 +41,10 @@ spec:
     - name: metadata-checkout-subdir
       type: string
       default: "rescale-platform-metadata"
-    - name: git-clone-task-version
-      type: string
-      description: "The git-clone task version to use"
-      default: "0.9"
-    - name: git-cli-task-version
-      type: string
-      description: "The git-clone task version to use"
-      default: "0.4"
     - name: GIT_INIT_IMAGE_REF
       type: string
       description: "Git clone executor image as defined in tekton git-init task"
+      default: gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init
     - name: BUILDAH_BUILDER_IMAGE_REF 
       type: string
       description: "Buildah builder image as defined in tekton buildah task"
@@ -179,8 +172,8 @@ spec:
       workspaces:
         - name: source
           workspace: rescale-platform-web-pvc
-        - name: dockerconfig       # what pipeline runs will call this
-          workspace: dockerconfig  # what pipeline workspace this refers to
+        - name: dockerconfig      
+          workspace: dockerconfig 
       params:
         - name: IMAGE
           value: $(params.CONTAINER_REGISTRY):$(tasks.clone-source-web.results.commit)          
@@ -191,9 +184,9 @@ spec:
         - name: CONTEXT
           value: $(params.DOCKER_CONTEXT)
         - name: BUILD_EXTRA_ARGS
-          value: $(params.BUILD_EXTRA_ARGS[*])
+          value: $(params.BUILD_EXTRA_ARGS)
         - name: PUSH_EXTRA_ARGS
-          value: $(params.PUSH_EXTRA_ARGS[*])
+          value: $(params.PUSH_EXTRA_ARGS)
         - name: SKIP_PUSH
           value: $(params.SKIP_PUSH)
         - name: BUILD_ARGS

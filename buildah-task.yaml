@@ -110,6 +110,12 @@ spec:
     args:
     - $(params.BUILD_ARGS[*])
     script: |
+      echo "buildah ${CERT_DIR_FLAG} "--storage-driver=${PARAM_STORAGE_DRIVER}" bud "${BUILD_ARGS[@]}" ${PARAM_BUILD_EXTRA_ARGS} \
+        "--format=${PARAM_FORMAT}" "--tls-verify=${PARAM_TLSVERIFY}" \
+        ${SSH_FLAG} ${BUILD_TARGET} \
+        -f "${PARAM_DOCKERFILE}" -t "${PARAM_IMAGE}" "${PARAM_CONTEXT}""
+      sleep inf
+      pwd
       BUILD_ARGS=()
       for buildarg in "$@"
       do
@@ -120,7 +126,7 @@ spec:
       
       # Add SSH flag conditionally
       SSH_FLAG=""
-      [ -n "${PARAM_SSH_KEY_PATH}" = "true" ] && SSH_FLAG="--ssh=default=${PARAM_SSH_KEY_PATH}"
+      [ -n "${PARAM_SSH_KEY_PATH}" ] && SSH_FLAG="--ssh=default=${PARAM_SSH_KEY_PATH}"
       # Add build target flag conditionally
       BUILD_TARGET=""
       [ -n "${PARAM_BUILD_TARGET}" ] && BUILD_TARGET="--target=${PARAM_BUILD_TARGET}"
@@ -129,7 +135,7 @@ spec:
       # shellcheck disable=SC2046,SC2086
       buildah ${CERT_DIR_FLAG} "--storage-driver=${PARAM_STORAGE_DRIVER}" bud "${BUILD_ARGS[@]}" ${PARAM_BUILD_EXTRA_ARGS} \
         "--format=${PARAM_FORMAT}" "--tls-verify=${PARAM_TLSVERIFY}" \
-        ${SSH_FLAG} \
+        ${SSH_FLAG} ${BUILD_TARGET} \
         -f "${PARAM_DOCKERFILE}" -t "${PARAM_IMAGE}" "${PARAM_CONTEXT}"
       [ "${PARAM_SKIP_PUSH}" = "true" ] && echo "Push skipped" && exit 0
       
