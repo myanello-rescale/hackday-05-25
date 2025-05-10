@@ -82,7 +82,7 @@ spec:
       An optional workspace that allows providing a .docker/config.json file
       for Buildah to access the container registry.
       The file should be placed at the root of the Workspace with name config.json.
-    optional: true
+    optional: false
   results:
   - name: IMAGE_DIGEST
     description: Digest of the image just built.
@@ -118,13 +118,13 @@ spec:
     - name: PARAM_BUILD_TARGET
       value: $(params.BUILD_TARGET)
     - name: PARAM_DOCKER_CACHE
-      value: $(params.DOCKER_CACHE
+      value: $(params.DOCKER_CACHE)
     - name: REGISTRY_AUTH_FILE
       value: $(workspaces.source.path)/auth.json
     args:
     - $(params.BUILD_ARGS[*])
     script: |
-      # we need to add the aws ecr auth to our auth.json file, but it's read only in the workspace
+      # we need to add the aws ecr auth to our auth.json file, but it's a read only secret in the workspace
       cp $(workspaces.dockerconfig.path)/config.json $(workspaces.source.path)/auth.json
       dnf install -y awscli
       aws ecr get-login-password | buildah login --username AWS --password-stdin ${PARAM_REGISTRY}
@@ -146,7 +146,7 @@ spec:
       [ -n "${PARAM_BUILD_TARGET}" ] && BUILD_TARGET="--target=${PARAM_BUILD_TARGET}"
       # Add cache flags conditionally
       DOCKER_CACHE=""
-      [ "${PARAM_DOCKER_CACHE}" == 'true' ] && DOCKER_CACHE="--layers --cache-from=${PARAM_REGISTRY} --cache-to=${PARAM_REGISTRY}"
+      [ "${PARAM_DOCKER_CACHE}" == 'true' ] && DOCKER_CACHE="--layers --cache-from ${PARAM_REGISTRY} --cache-to ${PARAM_REGISTRY}"
 
       # build the image (CERT_DIR_FLAG should be omitted if empty and BUILD_EXTRA_ARGS can contain multiple args)
       # shellcheck disable=SC2046,SC2086
