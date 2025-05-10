@@ -51,6 +51,9 @@ spec:
       default: quay.io/buildah/stable:v1
     - name: CONTAINER_REGISTRY
       type: string
+    - name: DOCKER_CACHE
+      type: string
+      default: "false"
     - name: DOCKER_FILE_LOCATION
       type: string
       default: "./rescale-platform-web/docker/Dockerfile"
@@ -176,7 +179,11 @@ spec:
           workspace: dockerconfig 
       params:
         - name: IMAGE
-          value: $(params.CONTAINER_REGISTRY):$(tasks.clone-source-web.results.commit)          
+          value: $(params.CONTAINER_REGISTRY):$(tasks.clone-source-web.results.commit)
+        - name: REGISTRY
+          value: $(params.CONTAINER_REGISTRY)      
+        - name: DOCKER_CACHE
+          value: $(params.DOCKER_CACHE)
         - name: BUILDER_IMAGE
           value: $(params.BUILDAH_BUILDER_IMAGE_REF)
         - name: DOCKERFILE

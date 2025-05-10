@@ -14,10 +14,10 @@ WORKDIR /opt/rescale/
 ARG APP_ROOT=/opt/rescale/
 ARG HOME=${APP_ROOT}/
 USER root
-COPY ./rescale-platform-web/pyproject.toml ./rescale-platform-web/.python-version ./openssl/openssl-verify.sh /opt/rescale/
+COPY ./rescale-platform-web/pyproject.toml ./rescale-platform-web/.python-version ./rescale-platform-web/docker/openssl/openssl-verify.sh /opt/rescale/
 # we gotta do some BS to get the openssl version we need
-COPY ./openssl/Rocky-Devel.repo ./openssl/Alma.repo /etc/yum.repos.d/
-COPY ./openssl/RPM-GPG-KEY-rockyofficial ./openssl/RPM-GPG-KEY-AlmaLinux9 /etc/pki/rpm-gpg/
+COPY ./rescale-platform-web/docker/openssl/Rocky-Devel.repo ./rescale-platform-web/docker/openssl/Alma.repo /etc/yum.repos.d/
+COPY ./rescale-platform-web/docker/openssl/RPM-GPG-KEY-rockyofficial ./rescale-platform-web/docker/openssl/RPM-GPG-KEY-AlmaLinux9 /etc/pki/rpm-gpg/
 RUN dnf config-manager --add-repo /etc/yum.repos.d/Rocky-Devel.repo && \
     dnf config-manager --set-enabled devel && \
     dnf config-manager --add-repo /etc/yum.repos.d/Alma.repo && \
@@ -81,7 +81,7 @@ RUN find /opt/ -name '.git' -exec rm -rf {} + && \
     find /opt/ -name 'git-hooks' -exec rm -rf {} +
 
 
-FROM backend AS backend-hardened
+FROM backend-prod AS backend-hardened
 RUN dnf remove -y \
     perl-macros perl-base perl-libs perl-IO \
     perl-interpreter perl-Errno perl-HTTP-Tiny \
