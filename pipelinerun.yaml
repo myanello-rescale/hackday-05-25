@@ -33,7 +33,7 @@ spec:
     - name: RUN_PUSH_TO_ARGOCD
       value: 'false'
     - name: DOCKER_CACHE
-      value: 'true'
+      value: 'false'
   pipelineRef:
     params:
       - name: kind

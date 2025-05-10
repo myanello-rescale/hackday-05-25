@@ -138,7 +138,7 @@ spec:
       [ -n "${PARAM_BUILD_TARGET}" ] && BUILD_TARGET="--target=${PARAM_BUILD_TARGET}"
       # Add cache flags conditionally
       DOCKER_CACHE=""
-      [ "${PARAM_DOCKER_CACHE}" == 'true' ] && DOCKER_CACHE="--cache-from=${PARAM_REGISTRY} --cache-to=${PARAM_REGISTRY}"
+      [ "${PARAM_DOCKER_CACHE}" == 'true' ] && DOCKER_CACHE="--layers --cache-from=${PARAM_REGISTRY} --cache-to=${PARAM_REGISTRY}"
 
       # build the image (CERT_DIR_FLAG should be omitted if empty and BUILD_EXTRA_ARGS can contain multiple args)
       # shellcheck disable=SC2046,SC2086
@@ -149,7 +149,6 @@ spec:
         ${PARAM_BUILD_EXTRA_ARGS} \
         "--format=${PARAM_FORMAT}" \
         "--tls-verify=${PARAM_TLSVERIFY}" \
-        --layers \
         ${SSH_FLAG} \
         ${DOCKER_CACHE} \
         ${BUILD_TARGET} \
