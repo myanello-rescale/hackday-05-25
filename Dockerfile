@@ -8,11 +8,23 @@ ARG NODE_REGISTRY=docker.io
 ARG NODE_IMAGE=node
 ARG NODE_TAG=18-bullseye-slim
 ARG NODE_DIGEST=sha256:912df8d9d8d23d39b463a8634d51cac990d89d2f62a6504e1d35296eb4f38251
+# syntax=docker/dockerfile:1
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/python/python39
+ARG BASE_TAG=3.9
+ARG BASE_DIGEST=sha256:4115bd7363870546a28b781aa00049f5ffad9520b8f84652beb0411004f23beb
 
-FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}@${BASE_DIGEST} AS python-builder
+ARG NODE_REGISTRY=docker.io
+ARG NODE_IMAGE=node
+ARG NODE_TAG=18-bullseye-slim
+ARG NODE_DIGEST=sha256:912df8d9d8d23d39b463a8634d51cac990d89d2f62a6504e1d35296eb4f38251
+
+FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}@${BASE_DIGEST} AS base
 WORKDIR /opt/rescale/
 ARG APP_ROOT=/opt/rescale/
 ARG HOME=${APP_ROOT}/
+ARG UV_LINK_MODE=copy
+ARG UV_COMPILE_BYTECODE=1
 USER root
 COPY ./rescale-platform-web/pyproject.toml ./rescale-platform-web/.python-version ./rescale-platform-web/docker/openssl/openssl-verify.sh /opt/rescale/
 # we gotta do some BS to get the openssl version we need
@@ -30,7 +42,29 @@ RUN dnf install -y --refresh --allowerasing \
     openssl-devel-3.0.7 rust cargo gcc gcc-c++ \
     make openssh-clients git pkgconf-pkg-config \
     xmlsec1-devel libpq-devel libtool-ltdl-devel
-# finally we can install our venv
+
+FROM base AS uv-builder
+RUN mkdir -p -m 600 /root/.ssh && \
+    ssh-keyscan github.com >> /root/.ssh/known_hosts
+RUN --mount=type=ssh \
+    pip install uv && \
+    #uv venv && \
+    sed -i 's/python = "~3.9.2 || ~3.10"/python = ">=3.9.2,<3.11.0"/' /opt/rescale/pyproject.toml && \
+    sed -i 's/git@github.com:/git+ssh:\/\/git\@github.com\//' /opt/rescale/pyproject.toml && \
+    sed -i 's/3.9.18/3.10/' /opt/rescale/.python-version && \
+    uvx migrate-to-uv --skip-lock /opt/rescale/ && \
+    uv venv venv && \
+    source venv/bin/activate && \
+    uv pip install --upgrade setuptools wheel && \
+    uv sync --no-binary-package cryptography --no-cache --active
+# Verify that python cryptography uses the OpenSSL we require
+#bash -c "source /opt/rescale/.venv/bin/activate && /opt/rescale/openssl-verify.sh"
+
+FROM base AS poetry-builder
+WORKDIR /opt/rescale/
+ARG APP_ROOT=/opt/rescale/
+ARG HOME=${APP_ROOT}/
+USER root
 RUN pip install poetry && \
     python3 -m venv venv
 RUN mkdir -p -m 600 /root/.ssh && \
@@ -55,25 +89,10 @@ RUN dnf upgrade -y --refresh --nodocs && \
     xmlsec1-openssl gettext git \
     openssh openssh-clients libpq-devel && \
     dnf -y clean all && rm -rf /var/dnf/cache
-COPY rescale-platform-metadata rescale-platform-web ./
-COPY --from=python-builder /opt/rescale/venv venv 
+COPY rescale-platform-metadata ./rescale-platform-metadata
+COPY rescale-platform-web ./rescale-platform-web
+COPY --from=poetry-builder /opt/rescale/venv venv 
 
-# RUN \ I don't think this is needed since we are building the venv in the same path as the final image
-#     for script in /opt/rescale/venv/bin/*; do \
-#     if head -n 1 "$script" | grep -q "/workspace/output/venv/bin/python"; then \
-#     sed -i "1s|^.*$|#\!/opt/rescale/venv/bin/python3|" "$script"; \
-#     fi; \
-#     done && \
-#     sed -i 's|/workspace/output/venv|/opt/rescale/venv|g' /opt/rescale/venv/bin/activate
-
-FROM cgr.dev/chainguard/wolfi-base AS backend-wolfi
-WORKDIR /opt/rescale
-ENV PATH="/opt/rescale/venv/bin:$PATH"
-RUN apk add python3~3.9
-COPY rescale-platform-metadata rescale-platform-metadata
-COPY rescale-platform-web rescale-platform-web
-COPY --from=python-builder /opt/rescale/venv venv
-COPY --from=python-builder /opt/app-root /opt/app-root
 
 FROM backend AS backend-prod
 RUN find /opt/ -name '.git' -exec rm -rf {} + && \
@@ -113,7 +132,7 @@ RUN npm config set engine-strict true && \
     echo "NODE_PATH=apps/shared:apps" >> .env && \
     echo "NODE_OPTIONS=--max-old-space-size=8192" >> .env
 COPY ./rescale-platform-web ./
-COPY --from=python-builder /opt/rescale/venv /opt/rescale/venv
+COPY --from=poetry-builder /opt/rescale/venv /opt/rescale/venv
 RUN npm install
 RUN npm run build
 

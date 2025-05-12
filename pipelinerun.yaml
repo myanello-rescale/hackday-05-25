@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   annotations: {}
-  name: web-build-hackday-22
+  name: poetry-cache-hit
   labels:
     argocd.argoproj.io/instance: dummy-label
 spec:
@@ -27,7 +27,7 @@ spec:
     - name: SSH_KEY_PATH
       value: /root/.ssh/id_rescale-org-github-bot-key
     - name: BUILD_TARGET
-      value: backend-hardened
+      value: poetry-builder
     - name: github-argocd-revision
       value: main
     - name: RUN_PUSH_TO_ARGOCD

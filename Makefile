@@ -1,8 +1,8 @@
 DATE_TAG := $(shell date +%Y%m%d)
 BACKEND_IMAGE_NAME := backend
 FRONTEND_IMAGE_NAME := frontend
-PYTHON_IMAGE_NAME := python-builder
-WOLFI_IMAGE_NAME := backend-wolfi
+POETRY_IMAGE_NAME := poetry-builder
+UV_IMAGE_NAME := uv-builder
 WORKER_IMAGE_NAME := worker
 .PHONY: all
 all: build
@@ -18,14 +18,14 @@ buildah:
 	-t "$(BACKEND_IMAGE_NAME):latest" \
 	"."
 
-.PHONY: build-python
-build-python:
-	@echo "Building $(PYTHON_IMAGE_NAME)..."
+.PHONY: build-poetry
+build-poetry:
+	@echo "Building $(POETRY_IMAGE_NAME)..."
 	docker build \
 		--ssh default=$(HOME)/.ssh/current/id_rsa_infra \
-		--target $(PYTHON_IMAGE_NAME) \
-		-t $(PYTHON_IMAGE_NAME):latest \
-		-t $(PYTHON_IMAGE_NAME):$(DATE_TAG) \
+		--target $(POETRY_IMAGE_NAME) \
+		-t $(POETRY_IMAGE_NAME):latest \
+		-t $(POETRY_IMAGE_NAME):$(DATE_TAG) \
 		-f Dockerfile .
 
 .PHONY: build-worker
@@ -38,16 +38,17 @@ build-worker:
 		-t $(WORKER_IMAGE_NAME):$(DATE_TAG) \
 		-f Dockerfile .
 
-.PHONY: build-wolfi
-build-wolfi:
-	@echo "Building $(WOLFI_IMAGE_NAME)..."
+
+.PHONY: uv
+uv:
+	@echo "Building $(UV_IMAGE_NAME)..."
 	docker build \
 		--ssh default=$(HOME)/.ssh/current/id_rsa_infra \
-		--target $(WOLFI_IMAGE_NAME) \
-		-t $(WOLFI_IMAGE_NAME):latest \
-		-t $(WOLFI_IMAGE_NAME):$(DATE_TAG) \
+		--target $(UV_IMAGE_NAME) \
+		-t $(UV_IMAGE_NAME):latest \
+		-t $(UV_IMAGE_NAME):$(DATE_TAG) \
 		-f Dockerfile .
-
+	
 .PHONY: build-backend
 build-backend:
 	echo "Building $(BACKEND_IMAGE_NAME)..." && \
@@ -56,7 +57,6 @@ build-backend:
 		--target $(BACKEND_IMAGE_NAME) \
 		-t $(BACKEND_IMAGE_NAME):latest \
 		-t $(BACKEND_IMAGE_NAME):$(DATE_TAG) \
-		-t 152586189762.dkr.ecr-fips.us-east-1.amazonaws.com/myanello-dev/hack-day-2025:backend \
 		-f Dockerfile .
 
 .PHONY: build-frontend
@@ -68,6 +68,7 @@ build-frontend:
 		-t $(FRONTEND_IMAGE_NAME):latest \
 		-t $(FRONTEND_IMAGE_NAME):$(DATE_TAG) \
 		-f Dockerfile .
+
 .PHONY: frontend-builder
 frontend-builder:
 	@echo "Building frontend-builder..."
@@ -77,6 +78,7 @@ frontend-builder:
 		-t frontend-builder:latest \
 		-t frontend-builder:$(DATE_TAG) \
 		-f Dockerfile .
+
 .PHONY: clean
 clean:
 	@echo "Cleaning up Docker images..."
