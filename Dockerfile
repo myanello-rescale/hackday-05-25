@@ -43,23 +43,6 @@ RUN dnf install -y --refresh --allowerasing \
     make openssh-clients git pkgconf-pkg-config \
     xmlsec1-devel libpq-devel libtool-ltdl-devel
 
-FROM base AS uv-builder
-RUN mkdir -p -m 600 /root/.ssh && \
-    ssh-keyscan github.com >> /root/.ssh/known_hosts
-RUN --mount=type=ssh \
-    pip install uv && \
-    #uv venv && \
-    sed -i 's/python = "~3.9.2 || ~3.10"/python = ">=3.9.2,<3.11.0"/' /opt/rescale/pyproject.toml && \
-    sed -i 's/git@github.com:/git+ssh:\/\/git\@github.com\//' /opt/rescale/pyproject.toml && \
-    sed -i 's/3.9.18/3.10/' /opt/rescale/.python-version && \
-    uvx migrate-to-uv --skip-lock /opt/rescale/ && \
-    uv venv venv && \
-    source venv/bin/activate && \
-    uv pip install --upgrade setuptools wheel && \
-    uv sync --no-binary-package cryptography --no-cache --active
-# Verify that python cryptography uses the OpenSSL we require
-#bash -c "source /opt/rescale/.venv/bin/activate && /opt/rescale/openssl-verify.sh"
-
 FROM base AS poetry-builder
 WORKDIR /opt/rescale/
 ARG APP_ROOT=/opt/rescale/
@@ -132,7 +115,8 @@ RUN npm config set engine-strict true && \
     echo "NODE_PATH=apps/shared:apps" >> .env && \
     echo "NODE_OPTIONS=--max-old-space-size=8192" >> .env
 COPY ./rescale-platform-web ./
-COPY --from=poetry-builder /opt/rescale/venv /opt/rescale/venv
+# we need the venv for some frontend scripts
+COPY --from=poetry-builder /opt/rescale/venv /opt/rescale/venv 
 RUN npm install
 RUN npm run build
 
